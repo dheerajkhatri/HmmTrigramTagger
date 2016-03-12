@@ -33,38 +33,24 @@ class HMM():
 
 			line_count += 1												
 			print 'processing line #' + str(line_count) + '.......................'
-			for ll in l.split(' '):						
-				#print ll
-				if ll == './.':
-					tag_penult = tag_last
-					tag_last = tag_current
-					tag_current = 'STOP'
-
-					#sentece boundary case
-					if tag_last != '' and tag_penult != '':
-						self.bi_tag[(tag_last,tag_current)] += 1
-						self.tri_tag[(tag_penult,tag_last,tag_current)] += 1
-				else:
+			for ll in l.split(' '):										
 					
-					#word,tag = ll.split('/')      #will be problem eg: origin/destination/NOUN
-					word = ll.rsplit('/',1)[0]
-					self.word_count[word] += 1
-					tag = ll.rsplit('/',1)[1]
-					tag_penult = tag_last
-					tag_last = tag_current
-					tag_current = tag
+				#word,tag = ll.split('/')      #will be problem eg: origin/destination/NOUN
+				word = ll.rsplit('/',1)[0]				
+				tag = ll.rsplit('/',1)[1]
+				tag_penult = tag_last
+				tag_last = tag_current
+				tag_current = tag
 
-					self.word_tag[(word,tag)] += 1
-					self.uni_tag[tag] += 1
-					self.bi_tag[(tag_last,tag_current)] += 1
-					self.tri_tag[(tag_penult,tag_last,tag_current)] += 1
-
-					#starting bigram
-					if tag_penult == '' and tag_last == '':
-						self.bi_tag[('','')] += 1													
-
-
-		
+				self.word_count[word] += 1
+				self.word_tag[(word,tag)] += 1
+				self.uni_tag[tag] += 1
+				self.bi_tag[(tag_last,tag_current)] += 1
+				self.tri_tag[(tag_penult,tag_last,tag_current)] += 1			
+				
+			self.uni_tag['STOP'] += 1
+			self.bi_tag[(tag_current,'STOP')] += 1
+			self.tri_tag[(tag_last,tag_current,'STOP')] += 1
 		#print self.word_tag.keys()
 		print "#uni_tag are: " + str(len(self.uni_tag))		
 		#print self.uni_tag		
@@ -104,13 +90,13 @@ class HMM():
 		return float(self.word_tag[(word,tag)])/float(self.uni_tag[tag])
 
 	def get_q(self,tag_penult,tag_last,tag_current):
-		return float(self.tri_tag[(tag_penult,tag_last,tag_current)])/float(self.bi_tag[(tag_penult,tag_last)])
+		return float(self.tri_tag[(tag_penult,tag_last,tag_current)] + 1)/float(self.bi_tag[(tag_penult,tag_last)] + len(self.word_count))
 
 	def get_parameters(self,method='UNK'):
 		#get all the words
 		self.words = set([key[0] for key in self.word_tag.keys()])
 		if method == 'UNK':
-			self.UNK()
+			self.map_rare_word()
 		elif method == 'MORPHO':
 			self.MORPHO()
 
@@ -131,19 +117,40 @@ class HMM():
 		self.fp.write('getting Q values...\n')
 		#get q value for each trigram
 		for (tag_penult,tag_last,tag_current) in self.tri_tag:
-			self.Q[(tag_penult,tag_last,tag_current)] = (self.get_q(tag_penult,tag_last,tag_current)+1) / float(len(self.word_count))
+			self.Q[(tag_penult,tag_last,tag_current)] = self.get_q(tag_penult,tag_last,tag_current)
 			self.fp.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')
 
-	def UNK(self):
+	def map_rare_word(self):
 		new_word_tag = defaultdict(int)
+		new_word_count = defaultdict(int)
 
 		#change less frequent words with frequency < 6
-		for (word,tag) in self.word_tag:
-			new_word_tag[(word,tag)] = self.word_tag[(word,tag)]
-			if(self.word_tag[(word,tag)] < 6):
-				new_word_tag[('<UNKNOWN>',tag)] += self.word_tag[(word,tag)]
+		for word in self.word_count:			
+			if self.word_count[word] < 6 :
+				new_word_count['RARE'] += self.word_count[word]
+			else:
+				new_word_count[word] += self.word_count[word]
 
-		self.word_tag = new_word_tag	
+		#update word,tag
+		for (word,tag) in self.word_tag:
+			if self.word_count[word] < 6:
+				new_word_tag[('RARE',tag)] += self.word_tag[(word,tag)]
+			else:
+				new_word_tag[(word,tag)] += self.word_tag[(word,tag)]
+				
+		self.word_tag = new_word_tag
+		self.word_count = new_word_count
+		self.words = set([key[0] for key in self.word_tag.keys()])
+
+		fwc = open(os.path.join(self.logdir + '/updated_word_count.txt'),'w')		
+		for word,count in sorted(self.word_count.items(),key=operator.itemgetter(1)):
+			fwc.write(word + ' = ' + str(count) + '\n')		
+		fwc.close()
+
+		fwc = open(os.path.join(self.logdir + '/updated_word_tag.txt'),'w')
+		for wordtag,count in sorted(self.word_tag.items(),key=operator.itemgetter(1)):
+			fwc.write(str(wordtag) + ' = ' + str(count) + '\n')
+		fwc.close()		
 
 	def subcategorize(self,word):
 		if not re.search(r'\w',word):
@@ -208,19 +215,18 @@ class HMM():
 		self.sent = []
 		fout = open(outFileName,'w')
 		sys.stderr.write('generating tag path by viterbi algorithm.....\n')
-		for l in open(self.ftest,'r'):			
+		for l in open(self.ftest,'r'):
 			l = l.strip()
 			self.sent = l.split(' ')
-			# remove last STOP symbol from list
-			temp = self.sent.pop(-1)
+			
 			sys.stderr.write(' '.join(self.sent) + '\n')
-			path = self.viterbi(' '.join(self.sent),method)
+			path = self.viterbi(self.sent,method)
 			#print 'printing path....'
 			#print path
 
 			for i in range(0,len(self.sent)):
 				fout.write(self.sent[i] + '/' + path[i] + ' ')
-			fout.write('./.')
+
 			self.sent = []
 			fout.write('\n')				
 		fout.close()
@@ -240,12 +246,12 @@ class HMM():
 			return self.tags
 
 	def viterbi(self,sent,method='UNK'):
-		#assuming sent don't contain STOP symbol
-		P = {}
-		y = []		
+		#assuming sent don't contain STOP symbol		
+		P = {}		
+		BP = {}
 		P[0,'',''] = 1		
 		n = len(sent)
-		BP = {}
+		y = ["" for x in range(n+1)]		
 
 		for k in range(1,n+1):
 			word = sent[k-1]
@@ -253,23 +259,22 @@ class HMM():
 			#handle unknown words
 			if word not in self.words:
 				if method == 'UNK':
-					word = '<UNK>'
+					word = 'RARE'
 				elif method == 'MORPHO':
 					word = self.subcategorize(word)
 
 
 			for u in self.get_possible_tags(k-1):
 				for v in self.get_possible_tags(k):
-					P[k,u,v],prev_w = max([(P[k-1,w,u]*self.Q[w,u,v]*self.E[word,v],w) for w in self.get_possible_tags(k-2)])
+					P[k,u,v],prev_w = max([(float(P[k-1,w,u]*self.Q[w,u,v]*self.E[word,v]),w) for w in self.get_possible_tags(k-2)])
 					BP[k,u,v] = prev_w			
 			
-		val,yn_1,y_n = max([(P[n,u,v]*self.Q[u,v,'STOP'],u,v) for u in self.get_possible_tags(n-1) for v in self.get_possible_tags(n)])
-		y.insert(0,y_n)
-		y.insert(0,yn_1)
+		val,y[n-1],y[n] = max([(float(P[n,u,v]*self.Q[u,v,'STOP']),u,v) for u in self.get_possible_tags(n-1) for v in self.get_possible_tags(n)])
 
 		for k in range(n-2,0,-1):
-			yk = BP[k+2,y[0],y[1]]
-			y.insert(0,yk)
+			y[k] = BP[k+2,y[k+1],y[k+2]]
+
+		y.pop(0)
 		return y
 
 
