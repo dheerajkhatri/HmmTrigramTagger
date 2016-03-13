@@ -6,14 +6,20 @@ from collections import defaultdict
 
 class HMM():
 
-	def __init__(self,trainFileName,testFileName,logFileName):
+	def __init__(self,trainFileName,testFileName):
 		self.ftrain =  trainFileName 
-		self.ftest =   testFileName
-		self.flog  =  logFileName
-		self.fp = open(self.flog,'w')
-		if not os.path.exists('log files'):
-			os.makedirs('log files')
-		self.logdir = 'log files'
+		self.ftest =   testFileName		
+		self.MINFREQ = 6
+		self.STOP_SYMBOL = 'STOP'
+		self.START_SYMBOL = ''	
+
+		if not os.path.exists('../logfiles'):
+			os.makedirs('../logfiles')
+		self.logdir = '../logfiles'
+
+		if not os.path.exists('../resultfiles'):
+			os.makedirs('../resultfiles')
+		self.resultdir = '../resultfiles'
 
 	#get counts of different parameters		
 	def get_counts(self):		
@@ -48,9 +54,9 @@ class HMM():
 				self.bi_tag[(tag_last,tag_current)] += 1
 				self.tri_tag[(tag_penult,tag_last,tag_current)] += 1			
 				
-			self.uni_tag['STOP'] += 1
-			self.bi_tag[(tag_current,'STOP')] += 1
-			self.tri_tag[(tag_last,tag_current,'STOP')] += 1
+			self.uni_tag[self.STOP_SYMBOL] += 1
+			self.bi_tag[(tag_current,self.STOP_SYMBOL)] += 1
+			self.tri_tag[(tag_last,tag_current,self.STOP_SYMBOL)] += 1
 		#print self.word_tag.keys()
 		print "#uni_tag are: " + str(len(self.uni_tag))		
 		#print self.uni_tag		
@@ -89,17 +95,15 @@ class HMM():
 	def get_e(self,word,tag):
 		return float(self.word_tag[(word,tag)])/float(self.uni_tag[tag])
 
-	def get_q(self,tag_penult,tag_last,tag_current):
+	def get_q_smoothing1(self,tag_penult,tag_last,tag_current):
 		return float(self.tri_tag[(tag_penult,tag_last,tag_current)] + 1)/float(self.bi_tag[(tag_penult,tag_last)] + len(self.word_count))
 
-	def get_parameters(self,method='UNK'):
+	def get_parameters(self,method='RARE'):
 		#get all the words
 		self.words = set([key[0] for key in self.word_tag.keys()])
-		if method == 'UNK':
-			self.map_rare_word()
-		elif method == 'MORPHO':
-			self.MORPHO()
+		self.map_rare_word(method)
 
+		#get updated words affter applying mapping with self.MINFREQ
 		self.words = set([key[0] for key in self.word_tag.keys()])
 		print '# words are ' + str(len(self.words)) + '\n'
 		self.tags = set(self.uni_tag.keys())		
@@ -107,34 +111,41 @@ class HMM():
 		self.Q = defaultdict(int)
 		self.E = defaultdict(int)
 
-		self.fp.write('getting E values...\n')
 		#get e value for each word_tag pair
+		sys.stderr.write('getting E values...\n')
+		fwc = open(os.path.join(self.logdir + '/e_values.txt'),'w')		
 		for (word,tag) in self.word_tag:
 			self.E[(word,tag)] = self.get_e(word,tag)
-			self.fp.write(word+'|'+tag+'='+str(self.E[(word,tag)])+'\n')
-		
-		self.fp.write('\n')
-		self.fp.write('getting Q values...\n')
+			fwc.write(word+'|'+tag+'='+str(self.E[(word,tag)])+'\n')
+				
 		#get q value for each trigram
+		sys.stderr.write('getting Q values...\n')		
+		fwc = open(os.path.join(self.logdir + '/q_values.txt'),'w')		
 		for (tag_penult,tag_last,tag_current) in self.tri_tag:
-			self.Q[(tag_penult,tag_last,tag_current)] = self.get_q(tag_penult,tag_last,tag_current)
-			self.fp.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')
+			self.Q[(tag_penult,tag_last,tag_current)] = self.get_q_smoothing1(tag_penult,tag_last,tag_current)
+			fwc.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')
 
-	def map_rare_word(self):
+	def map_rare_word(self,method='RARE'):
 		new_word_tag = defaultdict(int)
 		new_word_count = defaultdict(int)
 
-		#change less frequent words with frequency < 6
+		#change less frequent words with frequency < self.MINFREQ
 		for word in self.word_count:			
-			if self.word_count[word] < 6 :
-				new_word_count['RARE'] += self.word_count[word]
+			if self.word_count[word] < self.MINFREQ :
+				if method == 'RARE':
+					new_word_count['RARE'] += self.word_count[word]
+				elif method == 'GROUP':
+					new_word_count[self.subcategorize(word)] += self.word_count[word]
 			else:
 				new_word_count[word] += self.word_count[word]
 
 		#update word,tag
 		for (word,tag) in self.word_tag:
-			if self.word_count[word] < 6:
-				new_word_tag[('RARE',tag)] += self.word_tag[(word,tag)]
+			if self.word_count[word] < self.MINFREQ :
+				if method == 'RARE':
+					new_word_tag[('RARE',tag)] += self.word_tag[(word,tag)]
+				elif method == 'GROUP':
+					new_word_tag[(self.subcategorize(word),tag)] += self.word_tag[(word,tag)]
 			else:
 				new_word_tag[(word,tag)] += self.word_tag[(word,tag)]
 				
@@ -166,45 +177,12 @@ class HMM():
 		elif re.search(r'(\bun|\bin|ble\b|ry\b|ish\b|ious\b|ical\b|\bnon)',word):
 			return '<JJLIKE>'
 		else:
-			return '<OTHER>'
+			return '<OTHER>'	
 
-	def MORPHO(self):
-		new_word_tag = defaultdict(int)
-		new_word_count = defaultdict(int)		
-
-		#change less frequent words with frequency < 6
-		#update word_count
-		for word in self.word_count:			
-			if self.word_count[word] < 6 :
-				new_word_count[self.subcategorize(word)] += self.word_count[word]
-			else:
-				new_word_count[word] = self.word_count[word]
-
-		#update word,tag
-		for (word,tag) in self.word_tag:
-			if self.word_count[word] < 6:
-				new_word_tag[(self.subcategorize(word),tag)] += self.word_tag[(word,tag)]
-			else:
-				new_word_tag[(word,tag)] = self.word_tag[(word,tag)]
-				
-		self.word_tag = new_word_tag
-		self.word_count = new_word_count
-
-		
-		fwc = open(os.path.join(self.logdir + '/updated_word_count.txt'),'w')		
-		for word,count in sorted(self.word_count.items(),key=operator.itemgetter(1)):
-			fwc.write(word + ' = ' + str(count) + '\n')		
-		fwc.close()
-
-		fwc = open(os.path.join(self.logdir + '/updated_word_tag.txt'),'w')
-		for wordtag,count in sorted(self.word_tag.items(),key=operator.itemgetter(1)):
-			fwc.write(str(wordtag) + ' = ' + str(count) + '\n')
-		fwc.close()		
-
-	def tagger(self,outFileName,method='UNK'):
+	def tagger(self,method='RARE'):
 		#train the model
 		#fp = open(self.flog,'a')
-		self.fp.write('inside tagger function\n\n')
+		
 		sys.stderr.write('get_counts..............\n')		
 		self.get_counts()
 		sys.stderr.write('get_parameters............\n')
@@ -213,13 +191,15 @@ class HMM():
 		#start the tagging part
 		print 'start tagging part...........'
 		self.sent = []
-		fout = open(outFileName,'w')
+		fout = open(os.path.join(self.resultdir + '/tagger_' + method  + '_out.txt'),'w')		
 		sys.stderr.write('generating tag path by viterbi algorithm.....\n')
+		lineno = 1
 		for l in open(self.ftest,'r'):
 			l = l.strip()
 			self.sent = l.split(' ')
-			
-			sys.stderr.write(' '.join(self.sent) + '\n')
+			sys.stderr.write(str(lineno) + '\n')
+			lineno += 1
+			#sys.stderr.write(' '.join(self.sent) + '\n')
 			path = self.viterbi(self.sent,method)
 			#print 'printing path....'
 			#print path
@@ -245,7 +225,7 @@ class HMM():
 		else:
 			return self.tags
 
-	def viterbi(self,sent,method='UNK'):
+	def viterbi(self,sent,method='RARE'):
 		#assuming sent don't contain STOP symbol		
 		P = {}		
 		BP = {}
@@ -258,9 +238,9 @@ class HMM():
 			
 			#handle unknown words
 			if word not in self.words:
-				if method == 'UNK':
+				if method == 'RARE':
 					word = 'RARE'
-				elif method == 'MORPHO':
+				elif method == 'GROUP':
 					word = self.subcategorize(word)
 
 
@@ -269,7 +249,7 @@ class HMM():
 					P[k,u,v],prev_w = max([(float(P[k-1,w,u]*self.Q[w,u,v]*self.E[word,v]),w) for w in self.get_possible_tags(k-2)])
 					BP[k,u,v] = prev_w			
 			
-		val,y[n-1],y[n] = max([(float(P[n,u,v]*self.Q[u,v,'STOP']),u,v) for u in self.get_possible_tags(n-1) for v in self.get_possible_tags(n)])
+		val,y[n-1],y[n] = max([(float(P[n,u,v]*self.Q[u,v,self.STOP_SYMBOL]),u,v) for u in self.get_possible_tags(n-1) for v in self.get_possible_tags(n)])
 
 		for k in range(n-2,0,-1):
 			y[k] = BP[k+2,y[k+1],y[k+2]]
@@ -278,58 +258,23 @@ class HMM():
 		return y
 
 
-#python hmm.py Data/Brown_tagged_train.txt Data/sample_test.txt Data/log.txt
+#python hmm.py Data/Brown_tagged_train.txt Data/Brown_train.txt RARE
 if __name__ == "__main__":
-	#argv[1] : tagged train data
-	#argv[2] : test data
-	#argv[3] : log file
-	hmm = HMM(sys.argv[1],sys.argv[2],sys.argv[3])
-	#hmm = HMM('Data/Brown_tagged_train.txt','Data/Brown_train.txt')
-	hmm.tagger('Data/result','UNK')
+	
+	if len(sys.argv) != 4:
+		print 'Please provide all file names: \n'
+		print 'argv[1]:FileName of tagged train data file'
+		print 'argv[2]:FileName of test data file\n'
+		print 'argv[3]:Which method to run ie:\n'
+		print 'deliverable1 - RARE OR deliverable2 - GROUP'
+		print 'Program exiting now.'
+		exit()
 
+	if (sys.argv[3]!='RARE' or sys.argv[3]!='GROUP'):
+		print 'argv[3] enrty is not correct, Please Enter either RARE or GROUP.'
+		print 'Program exiting now.'
 
-
-
-# class runner(HMM):
-# 	def run_MORPHO(self):
-# 		self.get_counts()
-# 		self.get_parameters('MORPHO')
-# 		fout = open('MORPHO_out','w')
-# 		best = {}
-# 		besttag = ''
-# 		raremarkers = ['<PUNCS>','<CAPITAL>','<NUM>','<NOUNLIKE>','<VERBLIKE>','<JJLIKE>','<OTHER>']
-
-# 		#get the best tag for each raremarker
-# 		pivot = 0
-# 		tag = ''
-# 		for raremarker in raremarkers:
-# 			for (word,tag) in self.E:
-# 				if word == raremarker:
-# 					if self.E[(word,tag)] > pivot:
-# 						pivot = self.E[(word,tag)]
-# 						besttag = tag
-# 			best[raremarker] = tag
-# 			print raremarker,tag
-
-		
-# 		for l in open(self.ftest,'r'):
-# 			l = l.strip()
-
-# 			for ll in l.split(' '):
-# 				if ll == '.':
-# 					fout.write('\n')
-# 				else:
-# 					if ll in best:
-# 						fout.write(ll + '/' + best[ll])
-# 					else:
-# 						pivot = 0
-# 						besttag = ''
-# 						if ll not in self.words:
-# 							fout.write(w + '/' + best[self.subcategorize(ll)])
-# 						else:
-# 							for (word,tag) in self.E:
-# 								if word == ll:
-# 									if self.E[(word,tag)] > pivot:
-# 										pivot = self.E[(word,tag)]
-# 										besttag = tag
-# 							best[ll] = besttag	
+	
+	hmm = HMM(sys.argv[1],sys.argv[2])
+	#hmm = HMM('Data/Brown_tagged_train.txt','Data/Brown_train.txt')	
+	hmm.tagger(sys.argv[3])

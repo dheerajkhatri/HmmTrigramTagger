@@ -4,9 +4,10 @@ import sys
 import numpy as np
 
 class EVAL():
+	
 	def __init__(self,realoutFile,modeloutFile):
 		self.fout = realoutFile
-		self.fmodel = modeloutFile
+		self.fmodel = modeloutFile		
 
 	def get_alltags(self):
 		self.tags = set()
@@ -46,16 +47,7 @@ class EVAL():
 
 					tokens1 = outl.split(' ')
 					tokens2 = modell.split(' ')
-
-					# for i in range(0,len(tokens1)):
-					# 	print tokens1[i] + '  ',
-					# print '\n'
-
-					# for i in range(0,len(tokens2)):
-					# 	print tokens2[i] + '  ',
-					# print '\n'
-
-					# print str(len(tokens1)) + '  ' +  str(len(tokens2))
+	
 					
 					for i in range(0,len(tokens1)):
 						tokens1[i] = tokens1[i].rsplit('/',1)[1]
@@ -136,17 +128,18 @@ class EVAL():
 		self.f1_macro = (2 * self.pre_macro * self.rec_macro)/float(self.pre_macro + self.rec_macro)		
 
 	def print_confusion_mat(self):
+
 		for key,val in self.tag_map.items():
-			print key + '\t',
-		print '\n'
+			print key + '\t',			
+		print '\n'		
 
 		for i in range(0,self.tagCount):
 			for j in range(0,self.tagCount):
-				print str(self.confusion_mat[i][j]) + '\t',
-			print '\n'
+				print str(self.confusion_mat[i][j]) + '\t',				
+			print '\n'			
 		print 'all tokens count is :' + str(self.token_count)
 		print 'sum of all elements is :' + str(self.confusion_mat.sum())
-		print 'error count is :' + str(self.error_count)
+		print 'error count is :' + str(self.error_count)		
 
 	def print_count_mat(self):
 		print 'TP \t FP \t FN'		
@@ -171,11 +164,19 @@ class EVAL():
 		print '\n'
 
 
-#python evaltagpos.py expected_out.txt model_out.txt
+#python evaltagpos.py expected_out.txt tagger_out.txt
 if __name__ == "__main__":
 	#argv[1] contains expected tag values 
 	#argv[2] contains model's tag values
 	
+	if len(sys.argv) != 3:
+		print 'Please provide all file names: \n'
+		print 'argv[1]:expectedTagValueFile.txt'
+		print 'argv[2]:modelTagValueFile.txt\n'
+		print 'Program exiting now.'
+		exit()
+
+
 	eval = EVAL(sys.argv[1],sys.argv[2])
 	#eval.readFiles()
 	eval.get_alltags()
