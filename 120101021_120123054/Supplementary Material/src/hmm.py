@@ -27,7 +27,8 @@ class HMM():
 		self.uni_tag = defaultdict(int)
 		self.bi_tag = defaultdict(int)
 		self.tri_tag = defaultdict(int)
-		self.word_count = defaultdict(int)		
+		self.word_count = defaultdict(int)	
+		self.token_count =	0
 		
 		line_count = 0	
 		for l in open(self.ftrain,'r'):				
@@ -57,6 +58,10 @@ class HMM():
 			self.uni_tag[self.STOP_SYMBOL] += 1
 			self.bi_tag[(tag_current,self.STOP_SYMBOL)] += 1
 			self.tri_tag[(tag_last,tag_current,self.STOP_SYMBOL)] += 1
+
+		for tag in self.uni_tag:
+			self.token_count += self.uni_tag[tag]
+
 		#print self.word_tag.keys()
 		print "#uni_tag are: " + str(len(self.uni_tag))		
 		#print self.uni_tag		
@@ -95,10 +100,63 @@ class HMM():
 	def get_e(self,word,tag):
 		return float(self.word_tag[(word,tag)])/float(self.uni_tag[tag])
 
-	def get_q_smoothing1(self,tag_penult,tag_last,tag_current):
+	def get_q_laplace_smoothing(self,tag_penult,tag_last,tag_current):
 		return float(self.tri_tag[(tag_penult,tag_last,tag_current)] + 1)/float(self.bi_tag[(tag_penult,tag_last)] + len(self.word_count))
 
-	def get_parameters(self,method='RARE'):
+	def get_q_interpolation_smoothing(self,tag_penult,tag_last,tag_current):
+		total = float(0)
+		temp = float(self.bi_tag[(tag_penult,tag_last)])
+		if temp > 0:
+			total += float(self.l3 * self.tri_tag[(tag_penult,tag_last,tag_current)]) / temp
+		temp = float(self.uni_tag[tag_last])
+		if temp > 0:
+			total += float(self.l2 * self.bi_tag[(tag_last,tag_current)]) / temp
+		temp = float(self.token_count)
+		if temp > 0:
+			total += float(self.l1 * self.uni_tag[tag_current]) / temp
+		return  total
+
+
+	def deleted_interpolation(self):
+		self.l1 = float(0)
+		self.l2 = float(0)
+		self.l3 = float(0)
+		for (tag_penult,tag_last,tag_current) in self.tri_tag:
+			
+
+			temp = float(self.bi_tag[(tag_penult,tag_last)] - 1)
+			if temp <= 0:
+				val1 = 0
+			else:
+				val1 = float(self.tri_tag[(tag_penult,tag_last,tag_current)] - 1)/temp
+			
+			temp = float(self.uni_tag[tag_last] - 1)
+			if temp <=0 :
+				val2 = 0
+			else:
+				val2 = float(self.bi_tag[(tag_last,tag_current)] - 1)/temp
+			
+			temp = float(self.token_count-1)
+			if temp <=0 :
+				val3 = 0
+			else:
+				val3 = float(self.uni_tag[tag_current] - 1)/temp			
+
+
+
+			if val1 >= val2 and val1 >= val3:
+				self.l3 += self.tri_tag[(tag_penult,tag_last,tag_current)]
+			elif val2 >= val1 and val2 >= val3:
+				self.l2 += self.tri_tag[(tag_penult,tag_last,tag_current)]
+			elif val3 >= val1 and val3 >= val2:
+				self.l1 += self.tri_tag[(tag_penult,tag_last,tag_current)]
+
+		total_count = float(self.l1) + float(self.l2) + float(self.l3)
+		self.l1 = self.l1 / float(total_count)
+		self.l2 = self.l2 / float(total_count)
+		self.l3 = 1 - (self.l1 + self.l2)
+
+	def get_parameters(self,method='RARE',smoothing='Interpolation'):
 		#get all the words
 		self.words = set([key[0] for key in self.word_tag.keys()])
 		self.map_rare_word(method)
@@ -120,11 +178,22 @@ class HMM():
 				
 		#get q value for each trigram
 		sys.stderr.write('getting Q values...\n')		
-		fwc = open(os.path.join(self.logdir + '/q_values.txt'),'w')		
-		for (tag_penult,tag_last,tag_current) in self.tri_tag:
-			self.Q[(tag_penult,tag_last,tag_current)] = self.get_q_smoothing1(tag_penult,tag_last,tag_current)
-			fwc.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')
+		fwc = open(os.path.join(self.logdir + '/q_values_' + method + '_' + smoothing + '.txt'),'w')		
+		
+		# get values of lambdas
+		if smoothing == 'Interpolation':
+			self.deleted_interpolation()
+			print 'lambda1: ' + str(self.l1) + '\t' + 'lambda2: ' + str(self.l2) + '\t' + 'lambda3: ' + str(self.l3) + '\t'
 
+			for (tag_penult,tag_last,tag_current) in self.tri_tag:
+					self.Q[(tag_penult,tag_last,tag_current)] = self.get_q_interpolation_smoothing(tag_penult,tag_last,tag_current)
+					fwc.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')		
+
+		elif smoothing == 'Laplace':
+			for (tag_penult,tag_last,tag_current) in self.tri_tag:
+				self.Q[(tag_penult,tag_last,tag_current)] = self.get_q_laplace_smoothing(tag_penult,tag_last,tag_current)
+				fwc.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')
+									
 	def map_rare_word(self,method='RARE'):
 		new_word_tag = defaultdict(int)
 		new_word_count = defaultdict(int)
@@ -179,19 +248,19 @@ class HMM():
 		else:
 			return '<OTHER>'	
 
-	def tagger(self,method='RARE'):
+	def tagger(self,method='RARE',smoothing='Laplace'):
 		#train the model
 		#fp = open(self.flog,'a')
 		
 		sys.stderr.write('get_counts..............\n')		
 		self.get_counts()
 		sys.stderr.write('get_parameters............\n')
-		self.get_parameters(method)
+		self.get_parameters(method,smoothing)
 
 		#start the tagging part
 		print 'start tagging part...........'
 		self.sent = []
-		fout = open(os.path.join(self.resultdir + '/tagger_' + method  + '_out.txt'),'w')		
+		fout = open(os.path.join(self.resultdir + '/tagger_out_' + method  + '_' + smoothing + '.txt'),'w')		
 		sys.stderr.write('generating tag path by viterbi algorithm.....\n')
 		lineno = 1
 		for l in open(self.ftest,'r'):
@@ -261,20 +330,26 @@ class HMM():
 #python hmm.py Data/Brown_tagged_train.txt Data/Brown_train.txt RARE
 if __name__ == "__main__":
 	
-	if len(sys.argv) != 4:
+	if len(sys.argv) != 5:
 		print 'Please provide all file names: \n'
-		print 'argv[1]:FileName of tagged train data file'
-		print 'argv[2]:FileName of test data file\n'
-		print 'argv[3]:Which method to run ie:\n'
-		print 'deliverable1 - RARE OR deliverable2 - GROUP'
+		print 'argv[1]:train file name with taggs'
+		print 'argv[2]:test file name'
+		print 'argv[3]:Method \t ie: deliverable1 - RARE OR deliverable2 - GROUP'		
+		print 'argv[4]:Smoothing technique: Laplace or Interpolation\n'		
 		print 'Program exiting now.'
 		exit()
 
-	if (sys.argv[3]!='RARE' or sys.argv[3]!='GROUP'):
+
+	if (sys.argv[3]!='RARE' and sys.argv[3]!='GROUP'):
 		print 'argv[3] enrty is not correct, Please Enter either RARE or GROUP.'
 		print 'Program exiting now.'
+		exit()
 
-	
+	if (sys.argv[4]!='Laplace' and sys.argv[4]!='Interpolation'):
+		print 'argv[4] enrty is not correct, Please Enter either Laplace or Interpolation'
+		print 'Program exiting now.'
+		exit()
+
 	hmm = HMM(sys.argv[1],sys.argv[2])
-	#hmm = HMM('Data/Brown_tagged_train.txt','Data/Brown_train.txt')	
-	hmm.tagger(sys.argv[3])
+
+	hmm.tagger(sys.argv[3],sys.argv[4])
