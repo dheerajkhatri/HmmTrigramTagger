@@ -1,0 +1,86 @@
+timing for completed Brown_train_data.txt
+
+real	25m57.153s
+user	25m51.333s
+sys	0m5.133s
+
+timing for evaltagpos:
+
+real	0m2.424s
+user	0m2.451s
+sys	0m0.178s
+
+printing confusion matrix....
+
+ADV	NOUN	NUM	ADP	PRT	DET	.	PRON	VERB	X	CONJ	ADJ	
+
+23317	1055	756	1	113	0	420	664	63	0	22	1272	
+
+69	115520	16	4	44	0	11	1605	934	421	1	2145	
+
+504	76	63616	46	217	20	874	59	350	0	60	39	
+
+0	37	412	26450	294	0	1	13	21	0	0	1	
+
+25	13	319	405	62154	0	0	3	217	2	24	2	
+
+0	0	0	0	0	71206	0	0	349	0	0	0	
+
+86	330	1110	1	2	0	13921	35	56	0	0	81	
+
+64	4733	78	0	0	0	10	83019	304	0	0	1558	
+
+0	191	5	0	2	12	0	16	320	1	0	43	
+
+0	232	0	0	0	0	0	2	47	6380	0	3	
+
+43	7	6	0	41	0	0	4	124	0	17554	0	
+
+794	2995	27	0	0	0	16	537	213	82	0	31802	
+
+all tokens count is :543149
+sum of all elements is :543149
+error count is :0
+printing count matrix....
+
+TP 	 FP 	 FN
+23317	0	4366
+115520	69	5181
+63616	580	1665
+26450	449	330
+62154	762	248
+71206	0	349
+13921	1529	172
+83019	4885	1862
+320	226	44
+6380	281	3
+17554	225	0
+31802	4664	0
+
+
+printing class parameteres....
+
+PRE 	 REC 	 F1
+1.0	0.84	0.91
+1.0	0.96	0.98
+0.99	0.97	0.98
+0.98	0.99	0.99
+0.99	1.0	0.99
+1.0	1.0	1.0
+0.9	0.99	0.94
+0.94	0.98	0.96
+0.59	0.88	0.7
+0.96	1.0	0.98
+0.99	1.0	0.99
+0.87	1.0	0.93
+
+
+printing overall parameters for the classifier.....
+
+
+PRECISION (micro) : 0.974155321414
+PRECISION (macro) : 0.934197313937
+RECALL (micro) : 0.973143410787
+RECALL (macro) : 0.9664326603
+F1 score (micro) : 0.973649103181
+F1 score (macro) : 0.950041625767

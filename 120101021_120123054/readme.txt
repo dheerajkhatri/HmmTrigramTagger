@@ -48,6 +48,11 @@ Two smoothing techniques are used:
 First is simple laplace smoothing
 Second is deleted interpolation which seems to give better results.
 
+Completed Corpus results:
+This folder contains the result for different mapping method and smoothing technique when ran on completed brown corpus.
+extra_results files contains tag for extra lines which are present in brown test data
+please note,#lines in Brown_tagged_data.txt > #lines in Brown_train_data.txt
+
 References:
 https://web.stanford.edu/~jurafsky/slp3/9.pdf
 http://stp.lingfil.uu.se/~nivre/statmet/haulrich.pdf

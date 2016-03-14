@@ -24,9 +24,9 @@ class HMM():
 	#get counts of different parameters		
 	def get_counts(self):		
 		self.word_tag = defaultdict(int)
-		self.uni_tag = defaultdict(int)
-		self.bi_tag = defaultdict(int)
-		self.tri_tag = defaultdict(int)
+		self.unigram = defaultdict(int)
+		self.bigram = defaultdict(int)
+		self.trigram = defaultdict(int)
 		self.word_count = defaultdict(int)	
 		self.token_count =	0
 		
@@ -52,24 +52,24 @@ class HMM():
 
 				self.word_count[word] += 1
 				self.word_tag[(word,tag)] += 1
-				self.uni_tag[tag] += 1
-				self.bi_tag[(tag_last,tag_current)] += 1
-				self.tri_tag[(tag_penult,tag_last,tag_current)] += 1			
+				self.unigram[tag] += 1
+				self.bigram[(tag_last,tag_current)] += 1
+				self.trigram[(tag_penult,tag_last,tag_current)] += 1			
 				
-			self.uni_tag[self.STOP_SYMBOL] += 1
-			self.bi_tag[(tag_current,self.STOP_SYMBOL)] += 1
-			self.tri_tag[(tag_last,tag_current,self.STOP_SYMBOL)] += 1
+			self.unigram[self.STOP_SYMBOL] += 1
+			self.bigram[(tag_current,self.STOP_SYMBOL)] += 1
+			self.trigram[(tag_last,tag_current,self.STOP_SYMBOL)] += 1
 
-		for tag in self.uni_tag:
-			self.token_count += self.uni_tag[tag]
+		for tag in self.unigram:
+			self.token_count += self.unigram[tag]
 
 		#print self.word_tag.keys()
-		print "#uni_tag are: " + str(len(self.uni_tag))		
-		#print self.uni_tag		
-		print "#bi_tag are: " + str(len(self.bi_tag))		
-		#print self.bi_tag
-		print "#tri_tag are: " + str(len(self.tri_tag))		
-		#print self.tri_tag		
+		print "#unigram are: " + str(len(self.unigram))		
+		#print self.unigram		
+		print "#bigram are: " + str(len(self.bigram))		
+		#print self.bigram
+		print "#trigram are: " + str(len(self.trigram))		
+		#print self.trigram		
 
 
 		#log the data in file		
@@ -83,38 +83,38 @@ class HMM():
 			fwc.write(str(wordtag) + ' = ' + str(count) + '\n')
 		fwc.close()
 
-		fwc = open(os.path.join(self.logdir + '/uni_tag.txt'),'w')
-		for tag,count in sorted(self.uni_tag.items(),key=operator.itemgetter(1)):
+		fwc = open(os.path.join(self.logdir + '/unigram.txt'),'w')
+		for tag,count in sorted(self.unigram.items(),key=operator.itemgetter(1)):
 			fwc.write(tag + ' = ' + str(count) + '\n')		
 		fwc.close()
 
-		fwc = open(os.path.join(self.logdir + '/bi_tag.txt'),'w')
-		for tag,count in sorted(self.bi_tag.items(),key=operator.itemgetter(1)):
+		fwc = open(os.path.join(self.logdir + '/bigram.txt'),'w')
+		for tag,count in sorted(self.bigram.items(),key=operator.itemgetter(1)):
 			fwc.write(str(tag) + ' = ' + str(count) + '\n')		
 		fwc.close()
 
-		fwc = open(os.path.join(self.logdir + '/tri_tag.txt'),'w')
-		for tag,count in sorted(self.tri_tag.items(),key=operator.itemgetter(1)):
+		fwc = open(os.path.join(self.logdir + '/trigram.txt'),'w')
+		for tag,count in sorted(self.trigram.items(),key=operator.itemgetter(1)):
 			fwc.write(str(tag) + ' = ' + str(count) + '\n')						
 		fwc.close()
 
 	def get_e(self,word,tag):
-		return float(self.word_tag[(word,tag)])/float(self.uni_tag[tag])
+		return float(self.word_tag[(word,tag)])/float(self.unigram[tag])
 
 	def get_q_laplace_smoothing(self,tag_penult,tag_last,tag_current):
-		return float(self.tri_tag[(tag_penult,tag_last,tag_current)] + 1)/float(self.bi_tag[(tag_penult,tag_last)] + len(self.word_count))
+		return float(self.trigram[(tag_penult,tag_last,tag_current)] + 1)/float(self.bigram[(tag_penult,tag_last)] + len(self.word_count))
 
 	def get_q_interpolation_smoothing(self,tag_penult,tag_last,tag_current):
 		total = float(0)
-		temp = float(self.bi_tag[(tag_penult,tag_last)])
+		temp = float(self.bigram[(tag_penult,tag_last)])
 		if temp > 0:
-			total += float(self.l3 * self.tri_tag[(tag_penult,tag_last,tag_current)]) / temp
-		temp = float(self.uni_tag[tag_last])
+			total += float(self.l3 * self.trigram[(tag_penult,tag_last,tag_current)]) / temp
+		temp = float(self.unigram[tag_last])
 		if temp > 0:
-			total += float(self.l2 * self.bi_tag[(tag_last,tag_current)]) / temp
+			total += float(self.l2 * self.bigram[(tag_last,tag_current)]) / temp
 		temp = float(self.token_count)
 		if temp > 0:
-			total += float(self.l1 * self.uni_tag[tag_current]) / temp
+			total += float(self.l1 * self.unigram[tag_current]) / temp
 		return  total
 
 
@@ -122,35 +122,35 @@ class HMM():
 		self.l1 = float(0)
 		self.l2 = float(0)
 		self.l3 = float(0)
-		for (tag_penult,tag_last,tag_current) in self.tri_tag:
+		for (tag_penult,tag_last,tag_current) in self.trigram:
 			
 
-			temp = float(self.bi_tag[(tag_penult,tag_last)] - 1)
+			temp = float(self.bigram[(tag_penult,tag_last)] - 1)
 			if temp <= 0:
 				val1 = 0
 			else:
-				val1 = float(self.tri_tag[(tag_penult,tag_last,tag_current)] - 1)/temp
+				val1 = float(self.trigram[(tag_penult,tag_last,tag_current)] - 1)/temp
 			
-			temp = float(self.uni_tag[tag_last] - 1)
+			temp = float(self.unigram[tag_last] - 1)
 			if temp <=0 :
 				val2 = 0
 			else:
-				val2 = float(self.bi_tag[(tag_last,tag_current)] - 1)/temp
+				val2 = float(self.bigram[(tag_last,tag_current)] - 1)/temp
 			
 			temp = float(self.token_count-1)
 			if temp <=0 :
 				val3 = 0
 			else:
-				val3 = float(self.uni_tag[tag_current] - 1)/temp			
+				val3 = float(self.unigram[tag_current] - 1)/temp			
 
 
 
 			if val1 >= val2 and val1 >= val3:
-				self.l3 += self.tri_tag[(tag_penult,tag_last,tag_current)]
+				self.l3 += self.trigram[(tag_penult,tag_last,tag_current)]
 			elif val2 >= val1 and val2 >= val3:
-				self.l2 += self.tri_tag[(tag_penult,tag_last,tag_current)]
+				self.l2 += self.trigram[(tag_penult,tag_last,tag_current)]
 			elif val3 >= val1 and val3 >= val2:
-				self.l1 += self.tri_tag[(tag_penult,tag_last,tag_current)]
+				self.l1 += self.trigram[(tag_penult,tag_last,tag_current)]
 
 		total_count = float(self.l1) + float(self.l2) + float(self.l3)
 		self.l1 = self.l1 / float(total_count)
@@ -165,7 +165,7 @@ class HMM():
 		#get updated words affter applying mapping with self.MINFREQ
 		self.words = set([key[0] for key in self.word_tag.keys()])
 		print '# words are ' + str(len(self.words)) + '\n'
-		self.tags = set(self.uni_tag.keys())		
+		self.tags = set(self.unigram.keys())		
 
 		self.Q = defaultdict(int)
 		self.E = defaultdict(int)
@@ -186,12 +186,12 @@ class HMM():
 			self.deleted_interpolation()
 			print 'lambda1: ' + str(self.l1) + '\t' + 'lambda2: ' + str(self.l2) + '\t' + 'lambda3: ' + str(self.l3) + '\t'
 
-			for (tag_penult,tag_last,tag_current) in self.tri_tag:
+			for (tag_penult,tag_last,tag_current) in self.trigram:
 					self.Q[(tag_penult,tag_last,tag_current)] = self.get_q_interpolation_smoothing(tag_penult,tag_last,tag_current)
 					fwc.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')		
 
 		elif smoothing == 'Laplace':
-			for (tag_penult,tag_last,tag_current) in self.tri_tag:
+			for (tag_penult,tag_last,tag_current) in self.trigram:
 				self.Q[(tag_penult,tag_last,tag_current)] = self.get_q_laplace_smoothing(tag_penult,tag_last,tag_current)
 				fwc.write(tag_current+'|'+tag_penult+','+tag_last+'='+str(self.Q[(tag_penult,tag_last,tag_current)])+'\n')
 									
@@ -237,7 +237,7 @@ class HMM():
 		if not re.search(r'\w',word):
 			return '<PUNCS>'
 		elif re.search(r'[A-Z]',word):
-			return '<CAPITAL>'
+			return '<CAPS>'
 		elif re.search(r'\d',word):
 			return '<NUM>'
 		elif re.search(r'(ion\b|ty\b|ics\b|ment\b|ence\b|ance\b|ness\b|ist\b|ism\b)',word):
