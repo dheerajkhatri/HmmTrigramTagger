@@ -31,6 +31,7 @@ class HMM():
 		self.token_count =	0
 		
 		line_count = 0	
+		print 'Processing Train Data..........'
 		for l in open(self.ftrain,'r'):				
 			l = l.strip()
 
@@ -39,7 +40,7 @@ class HMM():
 			tag_current = ''						
 
 			line_count += 1												
-			print 'processing line #' + str(line_count) + '.......................'
+			#print 'processing line #' + str(line_count) + '.......................'
 			for ll in l.split(' '):										
 					
 				#word,tag = ll.split('/')      #will be problem eg: origin/destination/NOUN
@@ -266,7 +267,8 @@ class HMM():
 		for l in open(self.ftest,'r'):
 			l = l.strip()
 			self.sent = l.split(' ')
-			sys.stderr.write(str(lineno) + '\n')
+			if lineno % 100 == 0:
+				sys.stderr.write(str(lineno) + '\n')
 			lineno += 1
 			#sys.stderr.write(' '.join(self.sent) + '\n')
 			path = self.viterbi(self.sent,method)
@@ -327,7 +329,8 @@ class HMM():
 		return y
 
 
-#python hmm.py Data/Brown_tagged_train.txt Data/Brown_train.txt RARE
+#python hmm.py ../Data/Brown_tagged_train.txt ../Data/sample_test.txt RARE Laplace
+#python hmm.py ../Data/Brown_tagged_train.txt ../Data/sample_test.txt GROUP Interpolation
 if __name__ == "__main__":
 	
 	if len(sys.argv) != 5:

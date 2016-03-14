@@ -164,7 +164,8 @@ class EVAL():
 		print '\n'
 
 
-#python evaltagpos.py expected_out.txt tagger_out.txt
+#python evaltagpos.py ../resultfiles/expected_out.txt ../resultfiles/tagger_out_RARE_Laplace.txt
+#python evaltagpos.py ../resultfiles/expected_out.txt ../resultfiles/tagger_out_GROUP_Interpolation.txt
 if __name__ == "__main__":
 	#argv[1] contains expected tag values 
 	#argv[2] contains model's tag values

@@ -1,0 +1,72 @@
+printing confusion matrix....
+
+ADV	NOUN	ADP	PRT	DET	.	PRON	VERB	NUM	CONJ	ADJ	
+
+97	5	4	0	0	0	0	6	0	0	4	
+
+0	697	0	0	0	0	0	7	0	0	12	
+
+6	1	398	0	4	0	2	0	0	0	0	
+
+0	0	1	23	0	0	0	0	0	0	0	
+
+0	0	1	0	301	0	0	0	0	0	0	
+
+0	0	0	0	0	257	0	0	0	0	0	
+
+7	0	12	0	0	0	39	0	0	0	0	
+
+0	17	0	0	0	0	0	342	0	0	9	
+
+0	9	0	0	0	0	0	0	37	0	3	
+
+0	0	1	0	0	0	0	0	0	90	0	
+
+1	16	0	0	0	0	0	8	0	0	204	
+
+all tokens count is :2621
+sum of all elements is :2621
+error count is :0
+printing count matrix....
+
+TP 	 FP 	 FN
+97	0	19
+697	0	19
+398	7	6
+23	1	0
+301	1	0
+257	0	0
+39	19	0
+342	17	9
+37	9	3
+90	1	0
+204	25	0
+
+
+printing class parameteres....
+
+PRE 	 REC 	 F1
+1.0	0.84	0.91
+1.0	0.97	0.99
+0.98	0.99	0.98
+0.96	1.0	0.98
+1.0	1.0	1.0
+1.0	1.0	1.0
+0.67	1.0	0.8
+0.95	0.97	0.96
+0.8	0.93	0.86
+0.99	1.0	0.99
+0.89	1.0	0.94
+
+
+printing overall parameters for the classifier.....
+
+
+PRECISION (micro) : 0.968810916179
+PRECISION (macro) : 0.931544242411
+RECALL (micro) : 0.977961432507
+RECALL (macro) : 0.972198006628
+F1 score (micro) : 0.973364669017
+F1 score (macro) : 0.951437050908
+
+
